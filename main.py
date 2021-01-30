@@ -1,9 +1,11 @@
 import logging
 import subprocess
 import json
+import threading
 from telegram.ext import Updater, CommandHandler
 
 TELEGRAM_TOKEN = "1411158690:AAH51GDxqh33p3SOsh4eRPbiB3ySIlQJq98"
+
 
 class BotController:
     """
@@ -19,7 +21,7 @@ class BotController:
         """
         try:
             with open(self.config_file_name) as f:
-                self._config = json.loads(f)
+                self._config = json.load(f)
 
         # if json file does not exists do not load anything and
         # create it again at the next righting to the configuration
@@ -31,7 +33,10 @@ class BotController:
             json.dump(self._config, f, indent=2)
 
     def __init__(self, telegram_bot_token):
-        self._config = {}
+        self._config = {
+            "time": 10,
+            "vol": 50
+        }
 
         # object which acess to the telegram api and recognized new commands
         self._telegram_updater = Updater(TELEGRAM_TOKEN, use_context=True)
@@ -95,7 +100,11 @@ class BotController:
         elif vol > 85:
             vol = 85
 
-        subprocess.call(f"amixer -q -M sset Headphone {vol}%")
+        try:
+            subprocess.call(f"amixer -q -M sset Headphone {vol}%")
+        except FileNotFoundError:
+            pass
+
         return vol
 
     def _set_default_time(self, update, context):
@@ -119,13 +128,14 @@ class BotController:
         self._telegram_updater.start_polling()
         self._telegram_updater.idle()
 
-    def _stop(self, update, context):
+    def _stop(self):
+        logging.info("function _stop called")
         self._sound_subprocess.kill()
 
     def _start(self, update, context):
         time = self._config["time"]
         try:
-            time = context.args[0]
+            time = float(context.args[0])
         except KeyError:
             pass
 
@@ -134,12 +144,13 @@ class BotController:
             self._set_volume(vol)
         except KeyError:
             pass
-
+        threading.Timer(time, self._stop).start()
+        logging.info(f"starting for {time} seconds with volume of {vol}")
         self._sound_subprocess = subprocess.Popen(f"mpg123 /home/pi/12500.mp3 --timeout {time}", shell=True)
 
 
 def main():
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
     bot_controller = BotController(TELEGRAM_TOKEN)
     bot_controller.start()
 
