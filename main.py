@@ -1,16 +1,37 @@
+import json
 import logging
 import subprocess
-import json
 import threading
+import sched
+import datetime
+
+import pause as pause
 from telegram.ext import Updater, CommandHandler
 
 TELEGRAM_TOKEN = "1411158690:AAH51GDxqh33p3SOsh4eRPbiB3ySIlQJq98"
 
 
+# class AlarmThread(threading.Thread):
+#
+#     def run(self) -> None:
+
+
 class BotController:
     """
     class that handle for taking care of all the bot commands
+
+    conventions:
+        every exposed method start with cmd_
     """
+
+    usage = {
+        "start": "/start <time> <volume (0 - 100)>",
+        "setDefaultTime": "/setDefaultTime <default time>",
+        "setDefaultVol:": "/setDefaultVol <default volume>",
+        "stop": "/stop",
+        "showConfig": "/showConfig",
+        "shay": "/shay"
+    }
 
     #  configuration file name
     config_file_name = "config.json"
@@ -56,13 +77,31 @@ class BotController:
         self._telegram_updater.dispatcher.add_handler(CommandHandler("start", self._start, pass_args=True))
         self._telegram_updater.dispatcher.add_handler(CommandHandler("stop", self._stop, pass_args=True))
         self._telegram_updater.dispatcher.add_handler(
-            CommandHandler("setDefaultTime", self._set_default_vol, pass_args=True))
+            CommandHandler("set_default_time", self._set_default_time, pass_args=True))
         self._telegram_updater.dispatcher.add_handler(
-            CommandHandler("setDefaultVol", self._set_default_time, pass_args=True))
+            CommandHandler("set_default_vol", self._set_default_vol, pass_args=True))
         self._telegram_updater.dispatcher.add_handler(CommandHandler("showConfig", self._print_config, pass_args=True))
-        self._telegram_updater.dispatcher.add_handler(CommandHandler("help", self.help, pass_args=True))
+        self._telegram_updater.dispatcher.add_handler(CommandHandler("help", self.cmd_help, pass_args=True))
+        self._telegram_updater.dispatcher.add_handler(CommandHandler("shay", self.cmd_shay, pass_args=True))
 
-    def help(self, update, context):
+    def cmd_shay(self, update, context):
+        update.message.reply_text("shay idiot\n" * 100)
+
+    def cmd_add_alarm(self, update, context):
+        datetime.datetime.strptime()
+        threading.Timer()
+
+    def _add_alarm(self, hour):
+        now = datetime.datetime.now()
+
+        if hour > now.hour:
+            now.replace(hour=hour)
+        else:
+            now.replace(hour=hour, day=now.day + 1)
+
+        pause.until(now)
+
+    def cmd_help(self, update, context):
         """
         show help message to the user
 
@@ -73,12 +112,15 @@ class BotController:
         :param context: telegram object for sending getting commands parameters
         """
 
-        help_string_builder = []
-        for cmd in self._telegram_updater.dispatcher.handlers[0]:
-            help_string_builder.append(cmd.command[0])
-        update.message.reply_text("/" + "\n/".join(help_string_builder))
+        # help_string_builder = []
+        # for cmd in self._telegram_updater.dispatcher.handlers[0]:
+        #     help_string_builder.append(cmd.command[0])
+        # update.message.reply_text("/" + "\n/".join(help_string_builder))
 
-    def _set_volume(self, vol):
+        update.message.reply_text("\n".join(self.usage.values()))
+
+    @staticmethod
+    def _set_volume(vol):
         """
         set the volume of the raspberry.
 
@@ -93,13 +135,13 @@ class BotController:
 
         # todo: print error to the user
         except ValueError:
-            logging.error("enter number")
+            pass
 
         if vol < 0:
             vol = 0
-        elif vol > 85:
-            vol = 85
-
+        elif vol > 100:
+            vol = 100
+        vol = 85 * vol // 100
         try:
             subprocess.call(f"amixer -q -M sset Headphone {vol}%")
         except FileNotFoundError:
@@ -110,13 +152,19 @@ class BotController:
     def _set_default_time(self, update, context):
         if len(context.args) == 1:
             self._config["time"] = context.args[0]
-        self.save_config()
+            self.save_config()
+            update.message.reply_text(f"set default time to {self._config['time']}")
+        else:
+            update.message.reply_text(f"unexpected syntax, use: {self.usage['setDefaultTime']}")
 
     def _set_default_vol(self, update, context):
         if len(context.args) == 1:
             vol = self._set_volume(context.args[0])
             self._config["vol"] = vol
-        self.save_config()
+            self.save_config()
+            update.message.reply_text(f"set default time to {self._config['time']}")
+        else:
+            update.message.reply_text(f"unexpected syntax, use: {self.usage['setDefaultVol']}")
 
     def _print_config(self, update, context):
         """
@@ -143,10 +191,12 @@ class BotController:
             vol = context.args[1]
             self._set_volume(vol)
         except KeyError:
+            vol = self._config["vol"]
             pass
+
         threading.Timer(time, self._stop).start()
-        logging.info(f"starting for {time} seconds with volume of {vol}")
-        self._sound_subprocess = subprocess.Popen(f"mpg123 /home/pi/12500.mp3 --timeout {time}", shell=True)
+        self._sound_subprocess = subprocess.Popen(f"mpg123 -q /home/pi/Metallica_Enter_Sandman.mp3", shell=True)
+        update.message.reply_text(f"starting for {time} seconds with volume: {vol}")
 
 
 def main():
