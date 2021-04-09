@@ -1,0 +1,12 @@
+[Unit]
+Description=example systemd service unit file.
+After=syslog.target network.target mongodb.service
+
+
+[Service]
+ExecStart=/usr/bin/python3 /home/pi/the_annoying_machine/main.py
+Restart=always
+
+
+[Install]
+WantedBy=multi-user.target
