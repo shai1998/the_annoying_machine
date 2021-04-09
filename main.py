@@ -2,6 +2,9 @@ import logging
 import subprocess
 import json
 import threading
+import time
+
+import telegram
 from telegram.ext import Updater, CommandHandler
 
 TELEGRAM_TOKEN = "1411158690:AAH51GDxqh33p3SOsh4eRPbiB3ySIlQJq98"
@@ -39,6 +42,7 @@ class BotController:
         }
 
         # object which acess to the telegram api and recognized new commands
+
         self._telegram_updater = Updater(TELEGRAM_TOKEN, use_context=True)
         self._add_commands()
         self.load_config()
@@ -152,7 +156,13 @@ class BotController:
 def main():
     logging.basicConfig(level=logging.INFO)
     bot_controller = BotController(TELEGRAM_TOKEN)
-    bot_controller.start()
+    while True:
+        try:
+            bot_controller.start()
+            break
+        except telegram.error.NetworkError:
+            logging.warning(f"network error, try again in 1 sec")
+            time.sleep(1)
 
 
 if __name__ == "__main__":
